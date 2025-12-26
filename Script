@@ -1,27 +1,32 @@
--- UI Recorder Safe Version
--- Guaranteed UI show on execute
+-- Recorder UI Stable iOS / Delta
 
 local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 if not player then return end
 
--- ================= UI =================
 local gui = Instance.new("ScreenGui")
 gui.Name = "RecorderUI"
 gui.ResetOnSpawn = false
 gui.Parent = player:WaitForChild("PlayerGui")
 
+-- MAIN
 local main = Instance.new("Frame", gui)
 main.Size = UDim2.new(0, 620, 0, 360)
 main.Position = UDim2.new(0.5, -310, 0.5, -180)
 main.BackgroundColor3 = Color3.fromRGB(230,230,230)
 main.BorderSizePixel = 0
+main.Active = true
+main.ZIndex = 1
 Instance.new("UICorner", main).CornerRadius = UDim.new(0,14)
 
+-- TOP BAR
 local top = Instance.new("Frame", main)
 top.Size = UDim2.new(1,0,0,44)
-top.BackgroundColor3 = Color3.fromRGB(55,55,55)
+top.BackgroundColor3 = Color3.fromRGB(60,60,60)
 top.BorderSizePixel = 0
+top.Active = true
+top.ZIndex = 2
 
 local title = Instance.new("TextLabel", top)
 title.Size = UDim2.new(0.4,0,1,0)
@@ -32,100 +37,109 @@ title.TextColor3 = Color3.fromRGB(240,240,240)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 18
 title.TextXAlignment = Left
+title.ZIndex = 3
 
-local function btn(txt, x)
+local function makeBtn(text, x)
     local b = Instance.new("TextButton", top)
     b.Size = UDim2.new(0,90,0,30)
     b.Position = UDim2.new(0,x,0.15,0)
-    b.Text = txt
+    b.Text = text
     b.Font = Enum.Font.Gotham
-    b.TextSize = 16
+    b.TextSize = 15
     b.TextColor3 = Color3.fromRGB(240,240,240)
-    b.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    b.BackgroundColor3 = Color3.fromRGB(80,80,80)
+    b.BorderSizePixel = 0
+    b.AutoButtonColor = true
+    b.ZIndex = 4
     Instance.new("UICorner", b).CornerRadius = UDim.new(0,8)
     return b
 end
 
-local recordBtn = btn("Record", 0.45)
-local copyBtn = btn("Copy", 0.61)
+local recordBtn = makeBtn("Record", 0.45)
+local copyBtn   = makeBtn("Copy",   0.60)
+local minBtn    = makeBtn("-",      0.76)
+local closeBtn  = makeBtn("X",       0.87)
+closeBtn.BackgroundColor3 = Color3.fromRGB(150,50,50)
 
-local minBtn = btn("-", 0.77)
-local closeBtn = btn("X", 0.88)
-closeBtn.BackgroundColor3 = Color3.fromRGB(150,40,40)
-
+-- BODY
 local body = Instance.new("Frame", main)
 body.Position = UDim2.new(0.02,0,0.16,0)
 body.Size = UDim2.new(0.96,0,0.8,0)
 body.BackgroundColor3 = Color3.fromRGB(245,245,245)
-Instance.new("UICorner", body).CornerRadius = UDim.new(0,16)
+body.BorderSizePixel = 0
+body.ZIndex = 1
+Instance.new("UICorner", body).CornerRadius = UDim.new(0,14)
 
-local box = Instance.new("TextBox", body)
-box.Size = UDim2.new(0.96,0,0.9,0)
-box.Position = UDim2.new(0.02,0,0.05,0)
-box.MultiLine = true
-box.ClearTextOnFocus = false
-box.TextWrapped = true
-box.TextXAlignment = Left
-box.TextYAlignment = Top
-box.Font = Enum.Font.Code
-box.TextSize = 14
-box.Text = "-- Nhấn Record, chơi game, nhấn Stop để xuất script"
-box.BackgroundColor3 = Color3.fromRGB(240,240,240)
+local output = Instance.new("TextBox", body)
+output.Size = UDim2.new(0.96,0,0.92,0)
+output.Position = UDim2.new(0.02,0,0.04,0)
+output.MultiLine = true
+output.ClearTextOnFocus = false
+output.TextWrapped = true
+output.TextXAlignment = Left
+output.TextYAlignment = Top
+output.Font = Enum.Font.Code
+output.TextSize = 14
+output.Text = "-- Nhấn Record để bắt đầu"
+output.BackgroundColor3 = Color3.fromRGB(235,235,235)
+output.TextColor3 = Color3.fromRGB(30,30,30)
+output.ZIndex = 2
 
--- ================= DRAG =================
-local drag, dragStart, startPos
-top.InputBegan:Connect(function(i)
-    if i.UserInputType == Enum.UserInputType.MouseButton1 then
-        drag = true
-        dragStart = i.Position
-        startPos = main.Position
-        i.Changed:Connect(function()
-            if i.UserInputState == End then drag = false end
-        end)
-    end
-end)
+-- DRAG
+do
+    local dragging, dragStart, startPos
+    top.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = i.Position
+            startPos = main.Position
+            i.Changed:Connect(function()
+                if i.UserInputState == End then dragging = false end
+            end)
+        end
+    end)
 
-game:GetService("UserInputService").InputChanged:Connect(function(i)
-    if drag and i.UserInputType == MouseMovement then
-        local d = i.Position - dragStart
-        main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X,
-                                  startPos.Y.Scale, startPos.Y.Offset + d.Y)
-    end
-end)
+    UIS.InputChanged:Connect(function(i)
+        if dragging and i.UserInputType == MouseMovement then
+            local delta = i.Position - dragStart
+            main.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+end
 
--- ================= RECORD CORE =================
+-- RECORD CORE
 local recording = false
 local startTime = 0
 local lastTime = 0
 local logs = {}
 
-local function timeNow()
-    return os.clock() - startTime
-end
-
--- API để bạn gọi từ script khác khi muốn record hành động
 _G.Recorder = {}
 
-function _G.Recorder.Log(action)
+function _G.Recorder.Log(code)
     if not recording then return end
-    local t = timeNow()
+    local now = os.clock() - startTime
     table.insert(logs,{
-        dt = t - lastTime,
-        t = t,
-        act = action
+        dt = now - lastTime,
+        t = now,
+        c = code
     })
-    lastTime = t
+    lastTime = now
 end
 
-local function build()
-    local out = {}
-    table.insert(out,"-- Replay Script")
+local function buildScript()
+    local t = {}
+    table.insert(t,"-- Replay Script")
     for _,v in ipairs(logs) do
-        table.insert(out,string.format("-- t=%.2f",v.t))
-        table.insert(out,string.format("task.wait(%.3f)",v.dt))
-        table.insert(out,v.act)
+        table.insert(t,string.format("task.wait(%.3f)",v.dt))
+        table.insert(t,v.c)
+        table.insert(t,"")
     end
-    return table.concat(out,"\n")
+    return table.concat(t,"\n")
 end
 
 recordBtn.MouseButton1Click:Connect(function()
@@ -135,23 +149,25 @@ recordBtn.MouseButton1Click:Connect(function()
         startTime = os.clock()
         lastTime = 0
         recordBtn.Text = "Stop"
-        box.Text = "-- Recording..."
+        output.Text = "-- Recording..."
     else
         recording = false
         recordBtn.Text = "Record"
-        box.Text = build()
+        output.Text = buildScript()
     end
 end)
 
 copyBtn.MouseButton1Click:Connect(function()
-    if setclipboard then setclipboard(box.Text) end
+    if setclipboard then
+        setclipboard(output.Text)
+    end
 end)
 
-local mini = false
+local minimized = false
 minBtn.MouseButton1Click:Connect(function()
-    mini = not mini
-    body.Visible = not mini
-    main.Size = mini and UDim2.new(0,260,0,44) or UDim2.new(0,620,0,360)
+    minimized = not minimized
+    body.Visible = not minimized
+    main.Size = minimized and UDim2.new(0,260,0,44) or UDim2.new(0,620,0,360)
 end)
 
 closeBtn.MouseButton1Click:Connect(function()
