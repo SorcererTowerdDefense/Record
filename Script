@@ -1,4 +1,4 @@
--- Recorder Stable for Delta Android
+-- FULL AUTO REMOTE RECORDER FOR DELTA ANDROID
 
 if game.CoreGui:FindFirstChild("RecorderUI") then
     game.CoreGui.RecorderUI:Destroy()
@@ -16,10 +16,9 @@ local gui = Instance.new("ScreenGui")
 gui.Name = "RecorderUI"
 gui.Parent = game.CoreGui
 
-local main = Instance.new("Frame")
-main.Parent = gui
-main.Size = UDim2.new(0, 320, 0, 180)
-main.Position = UDim2.new(0, 50, 0, 100)
+local main = Instance.new("Frame", gui)
+main.Size = UDim2.new(0,320,0,180)
+main.Position = UDim2.new(0,50,0,100)
 main.BackgroundColor3 = Color3.fromRGB(50,50,50)
 main.BorderSizePixel = 0
 main.Active = true
@@ -36,10 +35,10 @@ title.TextColor3 = Color3.new(1,1,1)
 title.BackgroundTransparency = 1
 title.TextSize = 16
 
-local function mkBtn(txt, x)
+local function mkBtn(txt,x)
     local b = Instance.new("TextButton", main)
-    b.Size = UDim2.new(0, 90, 0, 30)
-    b.Position = UDim2.new(0, x, 0, 50)
+    b.Size = UDim2.new(0,90,0,30)
+    b.Position = UDim2.new(0,x,0,50)
     b.Text = txt
     b.TextSize = 14
     b.TextColor3 = Color3.new(1,1,1)
@@ -48,27 +47,33 @@ local function mkBtn(txt, x)
     return b
 end
 
-local recordBtn = mkBtn("Record", 10)
-local stopBtn = mkBtn("Stop", 110)
-local copyBtn = mkBtn("Copy", 210)
+local recordBtn = mkBtn("Record",10)
+local stopBtn = mkBtn("Stop",110)
+local copyBtn = mkBtn("Copy",210)
 
--- Recorder API
-local Recorder = {}
+-- HOOK REMOTE
+local mt = getrawmetatable(game)
+local old = mt.__namecall
+setreadonly(mt,false)
 
-function Recorder:Fire(remote, ...)
-    if recording then
+mt.__namecall = newcclosure(function(self,...)
+    local method = getnamecallmethod()
+    local args = {...}
+
+    if recording and method == "FireServer" and typeof(self) == "Instance" then
         table.insert(records,{
             time = tick() - startTime,
-            remote = remote,
-            args = {...}
+            remote = self,
+            args = args
         })
     end
-    remote:FireServer(...)
-end
 
-getgenv().Recorder = Recorder
+    return old(self,...)
+end)
 
--- Buttons logic
+setreadonly(mt,true)
+
+-- Buttons
 recordBtn.MouseButton1Click:Connect(function()
     records = {}
     startTime = tick()
@@ -86,7 +91,6 @@ copyBtn.MouseButton1Click:Connect(function()
 
     local out = {}
     table.insert(out,"-- Replay Script")
-    table.insert(out,"local t0 = tick()")
 
     for _,v in ipairs(records) do
         local args = {}
@@ -108,7 +112,5 @@ copyBtn.MouseButton1Click:Connect(function()
         )
     end
 
-    if setclipboard then
-        setclipboard(table.concat(out,"\n"))
-    end
+    setclipboard(table.concat(out,"\n"))
 end)
