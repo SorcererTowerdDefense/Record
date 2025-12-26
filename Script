@@ -1,393 +1,159 @@
--- Recorder + Exported Replay (LocalScript)
--- Put into StarterPlayerScripts
--- Records: SpawnNewTower, UpgradeTower, SellTower, AutoSkip, Replay
--- Exports replay script with timestamps and dt waits so executor can run it exactly
+-- UI Recorder Safe Version
+-- Guaranteed UI show on execute
 
 local Players = game:GetService("Players")
-local RS = game:GetService("ReplicatedStorage")
-local UserInput = game:GetService("UserInputService")
-
 local player = Players.LocalPlayer
 if not player then return end
 
--- safe lookup
-local Functions = RS:FindFirstChild("Functions")
-local Remotes = RS:FindFirstChild("Remotes")
-local Events = RS:FindFirstChild("Events")
+-- ================= UI =================
+local gui = Instance.new("ScreenGui")
+gui.Name = "RecorderUI"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
 
-local SpawnNewTower = Functions and Functions:FindFirstChild("SpawnNewTower")
-local UpgradeTower = Functions and Functions:FindFirstChild("UpgradeTower")
-local SellTower = Functions and Functions:FindFirstChild("SellTower")
-local AutoSkipRemote = Remotes and Remotes:FindFirstChild("AutoSkip")
-local ReplayEvent = Events and Events:FindFirstChild("Replay")
-
--- UI colors
-local COLOR_BG = Color3.fromRGB(240,240,240)
-local COLOR_PANEL = Color3.fromRGB(60,60,60)
-local COLOR_BTN = Color3.fromRGB(50,50,50)
-local COLOR_TEXT = Color3.fromRGB(245,245,245)
-
--- Build GUI
-local screen = Instance.new("ScreenGui")
-screen.Name = "RecorderUI"
-screen.ResetOnSpawn = false
-screen.Parent = player:WaitForChild("PlayerGui")
-
-local main = Instance.new("Frame", screen)
-main.Name = "Main"
-main.Size = UDim2.new(0, 720, 0, 420)
-main.Position = UDim2.new(0.5, -360, 0.5, -210)
-main.BackgroundColor3 = COLOR_BG
+local main = Instance.new("Frame", gui)
+main.Size = UDim2.new(0, 620, 0, 360)
+main.Position = UDim2.new(0.5, -310, 0.5, -180)
+main.BackgroundColor3 = Color3.fromRGB(230,230,230)
 main.BorderSizePixel = 0
-local mc = Instance.new("UICorner", main); mc.CornerRadius = UDim.new(0,12)
+Instance.new("UICorner", main).CornerRadius = UDim.new(0,14)
 
-local titleBar = Instance.new("Frame", main)
-titleBar.Size = UDim2.new(1,0,0,48)
-titleBar.Position = UDim2.new(0,0,0,0)
-titleBar.BackgroundColor3 = COLOR_PANEL
-titleBar.BorderSizePixel = 0
+local top = Instance.new("Frame", main)
+top.Size = UDim2.new(1,0,0,44)
+top.BackgroundColor3 = Color3.fromRGB(55,55,55)
+top.BorderSizePixel = 0
 
-local titleText = Instance.new("TextLabel", titleBar)
-titleText.Size = UDim2.new(0.5,0,1,0)
-titleText.Position = UDim2.new(0.02,0,0,0)
-titleText.BackgroundTransparency = 1
-titleText.Font = Enum.Font.GothamBold
-titleText.TextSize = 20
-titleText.Text = "Recorder"
-titleText.TextColor3 = COLOR_TEXT
-titleText.TextXAlignment = Enum.TextXAlignment.Left
+local title = Instance.new("TextLabel", top)
+title.Size = UDim2.new(0.4,0,1,0)
+title.Position = UDim2.new(0.03,0,0,0)
+title.BackgroundTransparency = 1
+title.Text = "Recorder"
+title.TextColor3 = Color3.fromRGB(240,240,240)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 18
+title.TextXAlignment = Left
 
-local function makeTitleButton(text, x)
-    local b = Instance.new("TextButton", titleBar)
-    b.Size = UDim2.new(0, 110, 0, 36)
-    b.Position = UDim2.new(0, x, 0.12, 0)
-    b.BackgroundColor3 = COLOR_BTN
-    b.TextColor3 = COLOR_TEXT
+local function btn(txt, x)
+    local b = Instance.new("TextButton", top)
+    b.Size = UDim2.new(0,90,0,30)
+    b.Position = UDim2.new(0,x,0.15,0)
+    b.Text = txt
     b.Font = Enum.Font.Gotham
-    b.TextSize = 18
-    b.Text = text
-    b.AutoButtonColor = true
-    local cr = Instance.new("UICorner", b); cr.CornerRadius = UDim.new(0,8)
+    b.TextSize = 16
+    b.TextColor3 = Color3.fromRGB(240,240,240)
+    b.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0,8)
     return b
 end
 
-local btnRecord = makeTitleButton("Record", 12)
-local btnCopy = makeTitleButton("Copy", 130)
-local btnTest = makeTitleButton("Test", 248)
+local recordBtn = btn("Record", 0.45)
+local copyBtn = btn("Copy", 0.61)
 
-local btnMin = Instance.new("TextButton", titleBar)
-btnMin.Size = UDim2.new(0, 64, 0, 36)
-btnMin.Position = UDim2.new(1, -150, 0.12, 0)
-btnMin.BackgroundColor3 = COLOR_BTN
-btnMin.Text = "-"
-btnMin.Font = Enum.Font.GothamBold
-btnMin.TextSize = 22
-btnMin.TextColor3 = COLOR_TEXT
-local cmin = Instance.new("UICorner", btnMin); cmin.CornerRadius = UDim.new(0,8)
+local minBtn = btn("-", 0.77)
+local closeBtn = btn("X", 0.88)
+closeBtn.BackgroundColor3 = Color3.fromRGB(150,40,40)
 
-local btnClose = Instance.new("TextButton", titleBar)
-btnClose.Size = UDim2.new(0, 64, 0, 36)
-btnClose.Position = UDim2.new(1, -76, 0.12, 0)
-btnClose.BackgroundColor3 = Color3.fromRGB(160,40,40)
-btnClose.Text = "X"
-btnClose.Font = Enum.Font.GothamBold
-btnClose.TextSize = 20
-btnClose.TextColor3 = COLOR_TEXT
-local cclose = Instance.new("UICorner", btnClose); cclose.CornerRadius = UDim.new(0,8)
+local body = Instance.new("Frame", main)
+body.Position = UDim2.new(0.02,0,0.16,0)
+body.Size = UDim2.new(0.96,0,0.8,0)
+body.BackgroundColor3 = Color3.fromRGB(245,245,245)
+Instance.new("UICorner", body).CornerRadius = UDim.new(0,16)
 
-local outputFrame = Instance.new("Frame", main)
-outputFrame.Position = UDim2.new(0.02,0,0.12,0)
-outputFrame.Size = UDim2.new(0.96,0,0.86,0)
-outputFrame.BackgroundColor3 = Color3.fromRGB(220,220,220)
-local oc = Instance.new("UICorner", outputFrame); oc.CornerRadius = UDim.new(0,16)
+local box = Instance.new("TextBox", body)
+box.Size = UDim2.new(0.96,0,0.9,0)
+box.Position = UDim2.new(0.02,0,0.05,0)
+box.MultiLine = true
+box.ClearTextOnFocus = false
+box.TextWrapped = true
+box.TextXAlignment = Left
+box.TextYAlignment = Top
+box.Font = Enum.Font.Code
+box.TextSize = 14
+box.Text = "-- Nhấn Record, chơi game, nhấn Stop để xuất script"
+box.BackgroundColor3 = Color3.fromRGB(240,240,240)
 
-local outputLabel = Instance.new("TextLabel", outputFrame)
-outputLabel.Size = UDim2.new(1, -24, 0, 28)
-outputLabel.Position = UDim2.new(0,12,0,8)
-outputLabel.BackgroundTransparency = 1
-outputLabel.Text = "Output"
-outputLabel.Font = Enum.Font.GothamBold
-outputLabel.TextColor3 = Color3.fromRGB(90,90,90)
-outputLabel.TextSize = 20
-outputLabel.TextXAlignment = Enum.TextXAlignment.Center
-
-local outputBox = Instance.new("TextBox", outputFrame)
-outputBox.Size = UDim2.new(0.96,0,0.84,0)
-outputBox.Position = UDim2.new(0.02,0,0.12,0)
-outputBox.ClearTextOnFocus = false
-outputBox.MultiLine = true
-outputBox.TextWrapped = true
-outputBox.Font = Enum.Font.Code
-outputBox.TextSize = 14
-outputBox.BackgroundColor3 = Color3.fromRGB(240,240,240)
-outputBox.TextColor3 = Color3.fromRGB(40,40,40)
-outputBox.Text = "-- Click Record, do actions, then Stop. Generated replay script appears here."
-
--- state
-local recording = false
-local startTime = 0
-local lastTime = 0
-local records = {}    -- {dt, t, type, params}
-local generatedScript = ""
-
--- helpers
-local function now()
-    return os.clock() - startTime
-end
-
-local function cfToParts(cf)
-    local px,py,pz = cf.X, cf.Y, cf.Z
-    local ok, a,b,c = pcall(function() return cf:ToEulerAnglesXYZ() end)
-    if ok and a then
-        return {px,py,pz,a,b,c}
-    else
-        return {px,py,pz,0,0,0}
-    end
-end
-
-local function partsToCfStr(p)
-    return string.format("CFrame.new(%f, %f, %f) * CFrame.Angles(%f, %f, %f)",
-        p[1], p[2], p[3], p[4], p[5], p[6])
-end
-
-local function fmtTime(s)
-    if not s then return "0.00s" end
-    local mins = math.floor(s/60)
-    local secs = s - mins*60
-    if mins > 0 then
-        return string.format("%d:%05.2f", mins, secs)
-    else
-        return string.format("%05.2f", secs) .. "s"
-    end
-end
-
-local function buildScriptFromRecords(recList)
-    local lines = {}
-    table.insert(lines, "-- Replay script generated by Recorder")
-    table.insert(lines, "-- Each action has comment with absolute timestamp (from record start)")
-    table.insert(lines, "local RS = game:GetService('ReplicatedStorage')")
-    table.insert(lines, "local Functions = RS:WaitForChild('Functions')")
-    table.insert(lines, "local Remotes = RS:WaitForChild('Remotes')")
-    table.insert(lines, "local Events = RS:WaitForChild('Events')")
-    table.insert(lines, "")
-    table.insert(lines, "task.wait(0.01)")
-    for i, r in ipairs(recList) do
-        if r.t then
-            table.insert(lines, string.format("-- [time: %s] absolute", fmtTime(r.t)))
-        end
-        if r.dt and r.dt > 0 then
-            table.insert(lines, string.format("task.wait(%0.3f)", r.dt))
-        end
-        if r.type == "Spawn" then
-            local id = tostring(r.params.id)
-            local cfparts = r.params.cfparts
-            local cfExpr = partsToCfStr(cfparts)
-            table.insert(lines, string.format("Functions:WaitForChild('SpawnNewTower'):InvokeServer(%q, %s)", id, cfExpr))
-        elseif r.type == "Upgrade" then
-            table.insert(lines, string.format("Functions:WaitForChild('UpgradeTower'):InvokeServer(workspace.Towers:WaitForChild(%q))", r.params.name))
-        elseif r.type == "Sell" then
-            table.insert(lines, string.format("Functions:WaitForChild('SellTower'):InvokeServer(workspace.Towers:WaitForChild(%q))", r.params.name))
-        elseif r.type == "AutoSkip" then
-            table.insert(lines, "Remotes:WaitForChild('AutoSkip'):FireServer()")
-        elseif r.type == "Replay" then
-            table.insert(lines, "Events:WaitForChild('Replay'):FireServer()")
-        end
-    end
-    return table.concat(lines, "\n")
-end
-
--- wrap remote calls to record actions
-local originals = {}
-
-if SpawnNewTower and typeof(SpawnNewTower.InvokeServer) == "function" then
-    originals.spawn = SpawnNewTower.InvokeServer
-    SpawnNewTower.InvokeServer = function(self, id, cf)
-        if recording then
-            local t = now()
-            local dt = t - lastTime
-            lastTime = t
-            table.insert(records, {dt = dt, t = t, type = "Spawn", params = {id = id, cfparts = cfToParts(cf)}})
-        end
-        local ok, res = pcall(function() return originals.spawn(self, id, cf) end)
-        if not ok then warn("SpawnNewTower invoke failed:", res) end
-        return res
-    end
-end
-
-if UpgradeTower and typeof(UpgradeTower.InvokeServer) == "function" then
-    originals.upg = UpgradeTower.InvokeServer
-    UpgradeTower.InvokeServer = function(self, tower)
-        if recording and tower and tower.Name then
-            local t = now()
-            local dt = t - lastTime
-            lastTime = t
-            table.insert(records, {dt = dt, t = t, type = "Upgrade", params = {name = tower.Name}})
-        end
-        local ok, res = pcall(function() return originals.upg(self, tower) end)
-        if not ok then warn("UpgradeTower invoke failed:", res) end
-        return res
-    end
-end
-
-if SellTower and typeof(SellTower.InvokeServer) == "function" then
-    originals.sell = SellTower.InvokeServer
-    SellTower.InvokeServer = function(self, tower)
-        if recording and tower and tower.Name then
-            local t = now()
-            local dt = t - lastTime
-            lastTime = t
-            table.insert(records, {dt = dt, t = t, type = "Sell", params = {name = tower.Name}})
-        end
-        local ok, res = pcall(function() return originals.sell(self, tower) end)
-        if not ok then warn("SellTower invoke failed:", res) end
-        return res
-    end
-end
-
-if AutoSkipRemote and typeof(AutoSkipRemote.FireServer) == "function" then
-    originals.autofire = AutoSkipRemote.FireServer
-    AutoSkipRemote.FireServer = function(self, ...)
-        if recording then
-            local t = now()
-            local dt = t - lastTime
-            lastTime = t
-            table.insert(records, {dt = dt, t = t, type = "AutoSkip", params = {}})
-        end
-        local ok, res = pcall(function() return originals.autofire(self, ...) end)
-        if not ok then warn("AutoSkip FireServer failed:", res) end
-        return res
-    end
-end
-
-if ReplayEvent and typeof(ReplayEvent.FireServer) == "function" then
-    originals.replay = ReplayEvent.FireServer
-    ReplayEvent.FireServer = function(self, ...)
-        if recording then
-            local t = now()
-            local dt = t - lastTime
-            lastTime = t
-            table.insert(records, {dt = dt, t = t, type = "Replay", params = {}})
-        end
-        local ok, res = pcall(function() return originals.replay(self, ...) end)
-        if not ok then warn("Replay FireServer failed:", res) end
-        return res
-    end
-end
-
--- UI Behaviour: minimize, close, drag
-local minimized = false
-local savedSize = main.Size
-
-local function setMin(v)
-    minimized = v
-    if minimized then
-        savedSize = main.Size
-        main.Size = UDim2.new(0, 320, 0, 48)
-        outputFrame.Visible = false
-    else
-        main.Size = savedSize
-        outputFrame.Visible = true
-    end
-end
-
-btnMin.MouseButton1Click:Connect(function()
-    setMin(not minimized)
-end)
-
-btnClose.MouseButton1Click:Connect(function()
-    screen:Destroy()
-end)
-
-local dragging = false
-local dragStart, startPos
-titleBar.InputBegan:Connect(function(inp)
-    if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = inp.Position
+-- ================= DRAG =================
+local drag, dragStart, startPos
+top.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 then
+        drag = true
+        dragStart = i.Position
         startPos = main.Position
-        inp.Changed:Connect(function()
-            if inp.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
+        i.Changed:Connect(function()
+            if i.UserInputState == End then drag = false end
         end)
     end
 end)
 
-UserInput.InputChanged:Connect(function(inp)
-    if dragging and inp.UserInputType == Enum.UserInputType.MouseMovement then
-        local delta = inp.Position - dragStart
-        main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+game:GetService("UserInputService").InputChanged:Connect(function(i)
+    if drag and i.UserInputType == MouseMovement then
+        local d = i.Position - dragStart
+        main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X,
+                                  startPos.Y.Scale, startPos.Y.Offset + d.Y)
     end
 end)
 
--- Start/Stop logic
-local function startRecord()
-    records = {}
-    recording = true
-    startTime = os.clock()
-    lastTime = 0
-    btnRecord.Text = "Stop"
-    outputBox.Text = "-- Recording..."
+-- ================= RECORD CORE =================
+local recording = false
+local startTime = 0
+local lastTime = 0
+local logs = {}
+
+local function timeNow()
+    return os.clock() - startTime
 end
 
-local function stopRecord()
-    recording = false
-    btnRecord.Text = "Record"
-    generatedScript = buildScriptFromRecords(records)
-    outputBox.Text = generatedScript
+-- API để bạn gọi từ script khác khi muốn record hành động
+_G.Recorder = {}
+
+function _G.Recorder.Log(action)
+    if not recording then return end
+    local t = timeNow()
+    table.insert(logs,{
+        dt = t - lastTime,
+        t = t,
+        act = action
+    })
+    lastTime = t
 end
 
-btnRecord.MouseButton1Click:Connect(function()
-    if not recording then startRecord() else stopRecord() end
-end)
-
--- Copy
-btnCopy.MouseButton1Click:Connect(function()
-    if not generatedScript or generatedScript == "" then
-        outputBox.Text = "-- No script generated. Record then Stop."
-        return
+local function build()
+    local out = {}
+    table.insert(out,"-- Replay Script")
+    for _,v in ipairs(logs) do
+        table.insert(out,string.format("-- t=%.2f",v.t))
+        table.insert(out,string.format("task.wait(%.3f)",v.dt))
+        table.insert(out,v.act)
     end
-    local ok, err = pcall(function() setclipboard(generatedScript) end)
-    if ok then
-        outputBox.Text = "-- Copied to clipboard."
+    return table.concat(out,"\n")
+end
+
+recordBtn.MouseButton1Click:Connect(function()
+    if not recording then
+        recording = true
+        logs = {}
+        startTime = os.clock()
+        lastTime = 0
+        recordBtn.Text = "Stop"
+        box.Text = "-- Recording..."
     else
-        outputBox.Text = "-- Copy failed (executor may not support setclipboard)."
+        recording = false
+        recordBtn.Text = "Record"
+        box.Text = build()
     end
 end)
 
--- Test: run generated script immediately using loadstring (pcall)
-btnTest.MouseButton1Click:Connect(function()
-    if not generatedScript or generatedScript == "" then
-        outputBox.Text = "-- No generated script to test."
-        return
-    end
-    outputBox.Text = "-- Testing generated script now..."
-    local chunk = "return function()\n" .. generatedScript .. "\nend"
-    local ok, f = pcall(function() return loadstring(chunk) end)
-    if not ok or not f then
-        outputBox.Text = "-- loadstring error: " .. tostring(f)
-        return
-    end
-    local ok2, fn = pcall(f)
-    if not ok2 or not fn then
-        outputBox.Text = "-- build-play function error"
-        return
-    end
-    -- execute in protected call
-    local ok3, err = pcall(function() fn() end)
-    if ok3 then
-        outputBox.Text = "-- Test executed (actions sent)."
-    else
-        outputBox.Text = "-- Test failed: " .. tostring(err)
-    end
+copyBtn.MouseButton1Click:Connect(function()
+    if setclipboard then setclipboard(box.Text) end
 end)
 
--- Ensure stop on leave
-player.CharacterRemoving:Connect(function()
-    if recording then stopRecord() end
+local mini = false
+minBtn.MouseButton1Click:Connect(function()
+    mini = not mini
+    body.Visible = not mini
+    main.Size = mini and UDim2.new(0,260,0,44) or UDim2.new(0,620,0,360)
 end)
 
--- initial
-outputBox.Text = "-- Click Record, perform actions, then Stop. Resulting script with timestamps will appear here."
-
--- End of script
+closeBtn.MouseButton1Click:Connect(function()
+    gui:Destroy()
+end)
