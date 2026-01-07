@@ -1,116 +1,118 @@
--- FULL AUTO REMOTE RECORDER FOR DELTA ANDROID
-
-if game.CoreGui:FindFirstChild("RecorderUI") then
-    game.CoreGui.RecorderUI:Destroy()
-end
-
+--// SERVICES
 local Players = game:GetService("Players")
-local player = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
 
-local recording = false
-local startTime = 0
-local records = {}
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
 
--- UI
-local gui = Instance.new("ScreenGui")
-gui.Name = "RecorderUI"
-gui.Parent = game.CoreGui
-
-local main = Instance.new("Frame", gui)
-main.Size = UDim2.new(0,320,0,180)
-main.Position = UDim2.new(0,50,0,100)
-main.BackgroundColor3 = Color3.fromRGB(50,50,50)
-main.BorderSizePixel = 0
-main.Active = true
-main.Draggable = true
-
-local top = Instance.new("Frame", main)
-top.Size = UDim2.new(1,0,0,30)
-top.BackgroundColor3 = Color3.fromRGB(70,70,70)
-
-local title = Instance.new("TextLabel", top)
-title.Size = UDim2.new(1,0,1,0)
-title.Text = "Recorder"
-title.TextColor3 = Color3.new(1,1,1)
-title.BackgroundTransparency = 1
-title.TextSize = 16
-
-local function mkBtn(txt,x)
-    local b = Instance.new("TextButton", main)
-    b.Size = UDim2.new(0,90,0,30)
-    b.Position = UDim2.new(0,x,0,50)
-    b.Text = txt
-    b.TextSize = 14
-    b.TextColor3 = Color3.new(1,1,1)
-    b.BackgroundColor3 = Color3.fromRGB(90,90,90)
-    b.BorderSizePixel = 0
-    return b
+-- Folder containing zombies
+local ZombiesFolder = Workspace:FindFirstChild("Zombies")
+if not ZombiesFolder then
+    warn("Zombies folder not found!")
+    return
 end
 
-local recordBtn = mkBtn("Record",10)
-local stopBtn = mkBtn("Stop",110)
-local copyBtn = mkBtn("Copy",210)
+local aimbotEnabled = false
 
--- HOOK REMOTE
-local mt = getrawmetatable(game)
-local old = mt.__namecall
-setreadonly(mt,false)
+--// GUI
+local gui = Instance.new("ScreenGui")
+gui.ResetOnSpawn = false
+gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
-mt.__namecall = newcclosure(function(self,...)
-    local method = getnamecallmethod()
-    local args = {...}
+local btn = Instance.new("TextButton")
+btn.Size = UDim2.new(0, 130, 0, 50)
+btn.Position = UDim2.new(0.03, 0, 0.75, 0)
+btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+btn.Text = "Camera: OFF"
+btn.Parent = gui
 
-    if recording and method == "FireServer" and typeof(self) == "Instance" then
-        table.insert(records,{
-            time = tick() - startTime,
-            remote = self,
-            args = args
-        })
+btn.Active = true
+btn.Draggable = false -- we'll use custom dragging
+
+--// TOGGLE
+btn.MouseButton1Click:Connect(function()
+    aimbotEnabled = not aimbotEnabled
+    btn.Text = aimbotEnabled and "Camera: ON" or "Camera: OFF"
+end)
+
+--// DRAGGING SYSTEM (works mobile + PC)
+local dragging = false
+local dragStart
+local startPos
+
+local function updateDrag(input)
+    local delta = input.Position - dragStart
+    btn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
+                             startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+btn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+
+        dragging = true
+        dragStart = input.Position
+        startPos = btn.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
     end
-
-    return old(self,...)
 end)
 
-setreadonly(mt,true)
-
--- Buttons
-recordBtn.MouseButton1Click:Connect(function()
-    records = {}
-    startTime = tick()
-    recording = true
-    recordBtn.Text = "Recording..."
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch) then
+        updateDrag(input)
+    end
 end)
 
-stopBtn.MouseButton1Click:Connect(function()
-    recording = false
-    recordBtn.Text = "Record"
-end)
+--// FIND NEAREST ZOMBIE HEAD
+local function getNearestHead()
+    local char = LocalPlayer.Character
+    if not char then return nil end
 
-copyBtn.MouseButton1Click:Connect(function()
-    if recording then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
 
-    local out = {}
-    table.insert(out,"-- Replay Script")
+    local nearest, dist = nil, math.huge
 
-    for _,v in ipairs(records) do
-        local args = {}
-        for _,a in ipairs(v.args) do
-            if typeof(a) == "string" then
-                table.insert(args,string.format("%q",a))
-            else
-                table.insert(args,tostring(a))
+    for _, z in ipairs(ZombiesFolder:GetChildren()) do
+        local head = z:FindFirstChild("Head")
+        if head then
+            local d = (hrp.Position - head.Position).Magnitude
+            if d < dist then
+                dist = d
+                nearest = head
             end
         end
-
-        table.insert(out,
-            string.format(
-                "task.delay(%.3f,function() %s:FireServer(%s) end)",
-                v.time,
-                v.remote:GetFullName(),
-                table.concat(args,",")
-            )
-        )
     end
 
-    setclipboard(table.concat(out,"\n"))
+    return nearest
+end
+
+--// CAMERA LOOP
+RunService.RenderStepped:Connect(function()
+    if not aimbotEnabled then
+        if Camera.CameraType ~= Enum.CameraType.Custom then
+            Camera.CameraType = Enum.CameraType.Custom
+        end
+        return
+    end
+
+    local head = getNearestHead()
+    if head then
+        Camera.CameraType = Enum.CameraType.Scriptable
+
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            local camPos = char.HumanoidRootPart.Position + Vector3.new(0, 2, 0)
+            Camera.CFrame = CFrame.new(camPos, head.Position)
+        end
+    end
 end)
