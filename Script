@@ -7,7 +7,7 @@ local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
--- Folder containing zombies
+--// ZOMBIES FOLDER
 local ZombiesFolder = Workspace:FindFirstChild("Zombies")
 if not ZombiesFolder then
     warn("Zombies folder not found!")
@@ -18,7 +18,10 @@ local aimbotEnabled = false
 
 --// GUI
 local gui = Instance.new("ScreenGui")
+gui.Name = "CameraUI"
 gui.ResetOnSpawn = false
+gui.DisplayOrder = 999999
+gui.IgnoreGuiInset = true
 gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
 local btn = Instance.new("TextButton")
@@ -27,10 +30,12 @@ btn.Position = UDim2.new(0.03, 0, 0.75, 0)
 btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 btn.TextColor3 = Color3.fromRGB(255, 255, 255)
 btn.Text = "Camera: OFF"
+btn.ZIndex = 999999
 btn.Parent = gui
 
 btn.Active = true
-btn.Draggable = false -- we'll use custom dragging
+btn.AutoButtonColor = true
+btn.Draggable = false
 
 --// TOGGLE
 btn.MouseButton1Click:Connect(function()
@@ -38,15 +43,19 @@ btn.MouseButton1Click:Connect(function()
     btn.Text = aimbotEnabled and "Camera: ON" or "Camera: OFF"
 end)
 
---// DRAGGING SYSTEM (works mobile + PC)
+--// DRAG SYSTEM (PC + MOBILE)
 local dragging = false
 local dragStart
 local startPos
 
 local function updateDrag(input)
     local delta = input.Position - dragStart
-    btn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
-                             startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    btn.Position = UDim2.new(
+        startPos.X.Scale,
+        startPos.X.Offset + delta.X,
+        startPos.Y.Scale,
+        startPos.Y.Offset + delta.Y
+    )
 end
 
 btn.InputBegan:Connect(function(input)
@@ -66,8 +75,10 @@ btn.InputBegan:Connect(function(input)
 end)
 
 UserInputService.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
-        or input.UserInputType == Enum.UserInputType.Touch) then
+    if dragging and (
+        input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch
+    ) then
         updateDrag(input)
     end
 end)
@@ -80,7 +91,8 @@ local function getNearestHead()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return nil end
 
-    local nearest, dist = nil, math.huge
+    local nearest = nil
+    local dist = math.huge
 
     for _, z in ipairs(ZombiesFolder:GetChildren()) do
         local head = z:FindFirstChild("Head")
@@ -110,8 +122,9 @@ RunService.RenderStepped:Connect(function()
         Camera.CameraType = Enum.CameraType.Scriptable
 
         local char = LocalPlayer.Character
-        if char and char:FindFirstChild("HumanoidRootPart") then
-            local camPos = char.HumanoidRootPart.Position + Vector3.new(0, 2, 0)
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            local camPos = hrp.Position + Vector3.new(0, 2, 0)
             Camera.CFrame = CFrame.new(camPos, head.Position)
         end
     end
