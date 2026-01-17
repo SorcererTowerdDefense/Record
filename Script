@@ -15,6 +15,7 @@ if not ZombiesFolder then
 end
 
 local aimbotEnabled = false
+local hiddenAccessories = {}
 
 --// GUI
 local gui = Instance.new("ScreenGui")
@@ -34,16 +35,48 @@ btn.ZIndex = 999999
 btn.Parent = gui
 
 btn.Active = true
-btn.AutoButtonColor = true
 btn.Draggable = false
+
+--// ACCESSORY CONTROL
+local function hideAccessories()
+    local char = LocalPlayer.Character
+    if not char then return end
+
+    hiddenAccessories = {}
+
+    for _, obj in ipairs(char:GetChildren()) do
+        if obj:IsA("Accessory") then
+            local handle = obj:FindFirstChild("Handle")
+            if handle then
+                hiddenAccessories[handle] = handle.Transparency
+                handle.Transparency = 1
+            end
+        end
+    end
+end
+
+local function showAccessories()
+    for handle, oldTransparency in pairs(hiddenAccessories) do
+        if handle and handle.Parent then
+            handle.Transparency = oldTransparency
+        end
+    end
+    hiddenAccessories = {}
+end
 
 --// TOGGLE
 btn.MouseButton1Click:Connect(function()
     aimbotEnabled = not aimbotEnabled
     btn.Text = aimbotEnabled and "Camera: ON" or "Camera: OFF"
+
+    if aimbotEnabled then
+        hideAccessories()
+    else
+        showAccessories()
+    end
 end)
 
---// DRAG SYSTEM (PC + MOBILE)
+--// DRAG SYSTEM
 local dragging = false
 local dragStart
 local startPos
@@ -127,5 +160,14 @@ RunService.RenderStepped:Connect(function()
             local camPos = hrp.Position + Vector3.new(0, 2, 0)
             Camera.CFrame = CFrame.new(camPos, head.Position)
         end
+    end
+end)
+
+--// RESET WHEN RESPAWN
+LocalPlayer.CharacterAdded:Connect(function()
+    hiddenAccessories = {}
+    if aimbotEnabled then
+        task.wait(0.2)
+        hideAccessories()
     end
 end)
